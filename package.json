@@ -1,0 +1,46 @@
+{
+    "name": "evo-random-coffee-bot",
+    "version": "1.0.0",
+    "description": "Make pairs for random cofee",
+    "main": "src/server/app.js",
+    "scripts": {
+        "dev": "babel-watch ./src/server/app.js",
+        "build": "babel src -d dist --copy-files --ignore '**/*.test.js'",
+        "test": "jest",
+        "test:watch": "jest --watchAll"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+hidden"
+    },
+    "keywords": [
+        "javascript",
+        "es6",
+        "express",
+        "babel",
+        "docker",
+        "jest"
+    ],
+    "author": "Aleksandr Koretskiy",
+    "license": "GPLv2",
+    "dependencies": {
+        "@slack/client": "^4.3.1",
+        "babel-cli": "^6.26.0",
+        "babel-core": "^6.26.3",
+        "babel-preset-env": "^1.6.0",
+        "babel-preset-stage-0": "^6.24.1",
+        "babel-plugin-transform-runtime": "^6.23.0",
+        "body-parser": "^1.18.3",
+        "cron": "^1.3.0",
+        "express": "^4.16.3",
+        "fs-readfile-promise": "^3.0.1",
+        "mysql": "^2.15.0",
+        "node-fetch": "^2.6.0",
+        "shuffle-array": "^1.0.1",
+        "squel": "^5.12.1"
+    },
+    "devDependencies": {
+        "babel-watch": "^2.0.7",
+        "jest": "^23.4.0"
+    }
+}

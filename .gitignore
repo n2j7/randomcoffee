@@ -1,0 +1,12 @@
+.idea
+auth.js
+dist/
+node_modules/
+secrets.js
+secrets.json
+secrets2.json
+tunnel.sh
+supervisord.conf
+
+# mysql data dir
+containers/db/var/lib/mysql

@@ -1,0 +1,64 @@
+version: '2.1'
+services:
+  db:
+    image: mysql:5.7
+    volumes:
+      - ./containers/db/var/lib/mysql:/var/lib/mysql
+      - ./containers/db/etc/mysql/conf.d/app.cnf:/etc/mysql/conf.d/app.cnf
+      - ./:/app
+    env_file: ./containers/db/.env
+
+  app:
+    image: node:8-alpine
+    depends_on:
+     - db
+    #restart: unless-stopped
+    #build: ./containers/app
+    environment:
+      - NODE_ENV=dev
+      #- NODE_DEBUG=cluster,net,http,fs,tls,module,timers
+      #- NODE_TLS_REJECT_UNAUTHORIZED=0
+      - NODE_PATH=/app/node_modules
+      - PATH=$PATH:/app/node_modules/.bin
+      - APP_PORT=80
+      - APP_HOST=127.0.0.1
+      - APP_DEV_PORT=8085
+      - APP_CFG=/app/secrets.json
+    ports:
+      - "8085:80"
+    volumes:
+    - ./:/app
+    working_dir: /app
+    command: npm run dev
+    # command: node ./node_modules/.bin/babel-node ./src/server/test.js
+
+  npm:
+    image: node:8-alpine
+    restart: "no"
+    #build: .
+    environment:
+      - NODE_ENV=dev
+      - ENV_NAME=local
+    volumes:
+    - ./:/app
+    working_dir: /app
+    command: npm i
+
+  dev_prod:
+    image: node:8-alpine
+    environment:
+      - NODE_ENV=dev
+      #- NODE_DEBUG=cluster,net,http,fs,tls,module,timers
+      #- NODE_TLS_REJECT_UNAUTHORIZED=0
+      - NODE_PATH=/app/node_modules
+      - PATH=$PATH:/app/node_modules/.bin
+      - APP_PORT=80
+      - APP_HOST=127.0.0.1
+      - APP_DEV_PORT=8085
+      - APP_CFG=/app/secrets2.json
+    ports:
+      - "8085:80"
+    volumes:
+    - ./:/app
+    working_dir: /app
+    command: npm run dev
