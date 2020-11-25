@@ -338,38 +338,21 @@ export async function onScheduleEdit(payload) {
     const settings = await getChannelSettings(payload.channel.id);
     const channel_in_db = !!settings.id;
 
-    let channel_info;
-    if (!channel_in_db || !settings.is_group || settings.is_group == 'Y') {
-        channel_info = await web.groups.info({ channel: payload.channel.id })
-            .then((r) => {
-                if (r.ok !== true) {
-                    console.log('ERROR! While fetching group info', r);
-                    return null
-                }
-                return r.group;
-            })
-            .catch((err) => {
-                console.log(payload.channel.id, 'not a group', err);
+    const channel_info = await web.conversations.info({ channel: payload.channel.id })
+        .then((r) => {
+            if (r.ok !== true) {
+                console.log('ERROR! While fetching group info', r);
                 return null;
-            });
-    }
-    if (!channel_info && (!channel_in_db || !settings.is_group || settings.is_group == 'N')) {
-        channel_info = await web.channels.info({ channel: payload.channel.id })
-            .then((r) => {
-                if (r.ok !== true) {
-                    console.log('ERROR! While fetching channel info', r);
-                    return null
-                }
-                return r.channel;
-            })
-            .catch((err) => {
-                console.log(payload.channel.id, 'not a channel', err);
-                return null;
-            });
-    }
+            }
+            return r.channel;
+        })
+        .catch((err) => {
+            console.log(payload.channel.id, ' is not found! ', err);
+            return null;
+        });;
+    console.log('Channel info', channel_info);
 
     try {
-
         if (!channel_info) {
             throw "Can't get info about channel!";
         }
@@ -417,7 +400,7 @@ export async function onScheduleEdit(payload) {
 
         const new_channel_settings = {
             channel_id: payload.channel.id,
-            name: channel_info ? channel_info.name : group_info.name,
+            name: channel_info.name,
             is_group: channel_info.is_group ? 'Y' : 'N',
             schedule,
             extra_schedule,
@@ -863,7 +846,7 @@ export async function randomLightMatch({ channel_id, user_id, test_run }) {
             console.log('unavailable list', unavail_list);
             const del_users_list = [];
             const restricted_users_list = [];
-            
+
             const active_members = members.filter((member) => {
                 if (unavail_list.indexOf(member) != -1) {// filter unavailable users
                     return false;
@@ -1358,11 +1341,11 @@ export function onStopReasonCome(payload) {
         ;
 }
 
-export async function initChannelInDb({channel_id, user_id}) {
+export async function initChannelInDb({ channel_id, user_id }) {
     const web = getBotClient();
     const settings = await getChannelSettings(channel_id);
 
-    const info = await web.conversations.info({channel: channel_id});
+    const info = await web.conversations.info({ channel: channel_id });
     console.log('Channel info', info);
 
     settings.name = info.channel.name;

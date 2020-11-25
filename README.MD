@@ -54,6 +54,21 @@
   * требует сертификат, общение по HTTPS
 - MySQL
 
+# Используемые слак методы 
+
+Слак постоянно меняет поведение своих методов, улучшает процессы взаимодействия с ботами, в боте задействованы следующие методы и механизмы взаимодействия со слаком:
+
+- [chat.postMessage](https://api.slack.com/methods/chat.postMessage)
+- [chat.update](https://api.slack.com/methods/chat.update)
+- [chat.postEphemeral](https://api.slack.com/methods/chat.postEphemeral)
+- [dialog.open](https://api.slack.com/methods/dialog.open)
+- [conversations.info](https://api.slack.com/methods/conversations.info)
+- [conversations.members](https://api.slack.com/methods/conversations.members)
+- [users.list](https://api.slack.com/methods/users.list)
+- [users.info](https://api.slack.com/methods/users.info)
+- [users.conversations](https://api.slack.com/methods/users.conversations)
+- [асинхронные ответы](https://api.slack.com/interactivity/handling#async_responses)
+
 ## @TODO
 - как конфигурировать
 - как запускать
