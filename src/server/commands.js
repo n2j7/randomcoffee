@@ -16,7 +16,7 @@ import {
     getAutoOk
 } from './userModel';
 import { isChannelRegistered } from './schedule';
-import { getBotClient, slackAsyncResponce } from './slack_web';
+import { getBotClient, slackAsyncResponce, getAllChannelMembers } from './slack_web';
 import { getChannelsList } from './channelModel';
 import {
     competitionIntro,
@@ -134,12 +134,11 @@ export async function processAction(req, res) {
     if (callback_id == 'admin_form' && is_admin && actions.length) {
         const last_action = actions.pop();
         if (last_action.name == 'run' && last_action.value == 'light') {
-            const a = adm_cmd.randomLightMatch({
+            adm_cmd.randomLightMatch({
                 channel_id: channel.id,
                 user_id: user.id
             });
-            structResponse(res, a);
-            return;
+            // return nothing -> go to default response with deleting original message
         }
         else if (last_action.name == 'close' && last_action.value == 'light') {
             adm_cmd.closeLightEvent({
@@ -214,6 +213,17 @@ export async function processAction(req, res) {
             });
             structResponse(res, a);
             return;
+        }
+        else if (last_action.name == 'stop' && last_action.value == 'dialog') {
+            await adm_cmd.showStopDialog(payload.trigger_id, channel.id);
+            // return nothing -> go to default response with deleting original message
+        }
+        else if (last_action.name == 'init' && last_action.value == 'action') {
+            await adm_cmd.initChannelInDb({
+                channel_id: channel.id,
+                user_id: user.id,
+            });
+            // return nothing -> go to default response with deleting original message
         }
     }
 
@@ -331,6 +341,15 @@ export async function processAction(req, res) {
         && payload.type == "dialog_submission"
     ) {
         const a = usr_cmd.onSaveUserStory(payload);
+        structResponse(res, a);
+        return;
+    }
+
+    if (
+        callback_id == 'dialog-stop'
+        && payload.type == "dialog_submission"
+    ) {
+        const a = adm_cmd.onStopReasonCome(payload);
         structResponse(res, a);
         return;
     }
@@ -550,46 +569,7 @@ export async function createReport(req, res) {
     let channels = await getChannelsList();
     for (let i = 0, l = channels.length; i < l; i++) {
         let channel = channels[i];
-        let members;
-
-        if (channel.is_group == 'Y') {
-            members = await web.groups.list({
-                exclude_archived: true,
-                exclude_members: false,
-            })
-                .then((r) => {
-                    if (r.ok != true) {
-                        throw "bad response ok!=ok";
-                    }
-                    let group = r.groups.find((group) => {
-                        return group.id == channel.channel_id;
-                    });
-
-                    return group ? group.members : null;
-                })
-                .catch((err) => {
-                    console.log(channel.channel_id);
-                    console.log('Slack GROUPS.LIST', err);
-                })
-                ;
-        }
-        else {
-            members = await web.channels.info({
-                channel: channel.channel_id,
-            })
-                .then((r) => {
-
-                    if (r.ok != true) {
-                        throw "bad response ok!=ok";
-                    }
-                    return r.channel.members;
-                })
-                .catch((err) => {
-                    console.log(channel.channel_id);
-                    console.log('Slack CHANNELS.INFO', err);
-                })
-                ;
-        }
+        const members = await getAllChannelMembers(channel.channel_id);
 
         if (!members) {
             console.log('Group with empty members!', channel.name, channel.id);

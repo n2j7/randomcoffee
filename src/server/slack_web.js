@@ -90,3 +90,32 @@ export function slackAsyncResponce(url, data) {
         .catch(err => console.log('ERROR: slackAsyncResponce error', err))
         ;
 }
+
+export async function getAllChannelMembers(channel) {
+    const web = getBotClient();
+
+    let members = [];
+    let cursor = null;
+    let resp = {};
+    do {
+        resp = await web.conversations.members({
+            channel,
+            cursor,
+            limit: 100,
+        })
+            .then((r) => {
+                if (r.ok != true) {
+                    throw "bad response ok!=ok";
+                }
+                return r;
+            })
+            .catch((err) => { console.log('Slack GROUPS.LIST', err); })
+            ;
+
+        members.push(...resp.members);
+        cursor = resp.response_metadata.next_cursor;
+    }
+    while (cursor);
+
+    return members;
+}

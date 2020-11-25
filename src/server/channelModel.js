@@ -206,3 +206,14 @@ export async function removeChannelAdmin(channel_id, user_id) {
 
     return createChannelSettings(settings);
 }
+
+export async function updateChannelReason(channel_id, reason) {
+    const settings = await getChannelSettings(channel_id);
+    if (!settings.id) {
+        throw "Can't get channel by ID";
+        return false;
+    }
+
+    settings.stop_reason = reason;
+    return updateChannelSettings(settings.id, settings);
+}

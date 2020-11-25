@@ -47,6 +47,8 @@ CREATE TABLE `channels` (
     `timezone` varchar(64) NOT NULL,
     `cdate` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `admins` varchar(128) NULL,
+    `stop_reason` varchar(512) NULL,
+    `is_turned_off` enum('Y','N') NULL,
     PRIMARY KEY (`id`),
     UNIQUE KEY `channel_idx` (`channel_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -87,3 +89,5 @@ CREATE TABLE `competition_log` (
 -- alter table users add column `avail_date` TIMESTAMP NULL after cdate;
 -- alter table users add column `story` varchar(250) NULL after is_auto_ok;
 -- alter table competition_log add column `user_name` varchar(100) NULL after user_id;
+-- alter table channels add column `stop_reason` varchar(512) NULL after admins;
+-- alter table channels add column `is_turned_off` enum('Y','N') NULL, after stop_reason;

@@ -1,4 +1,4 @@
-import { getBotClient } from './slack_web';
+import { getBotClient, getAllChannelMembers } from './slack_web';
 import {
     updateChannelSettings,
     getChannelSettings,
@@ -6,6 +6,7 @@ import {
     removeChannelAdmin,
     getChannelEventState,
     createChannelSettings,
+    updateChannelReason,
 } from './channelModel';
 import {
     registerSchedule,
@@ -157,6 +158,24 @@ export function adminSettingsInterface() {
                         text: "Тексты",
                         type: "button",
                         value: "view",
+                    },
+                ]
+            },
+            {
+                callback_id: "admin_form",
+                title: null,
+                actions: [
+                    {
+                        name: "init",
+                        text: "Init",
+                        type: "button",
+                        value: "action",
+                    },
+                    {
+                        name: "stop",
+                        text: "Приостановка",
+                        type: "button",
+                        value: "dialog",
                     },
                     {
                         name: "history",
@@ -780,32 +799,36 @@ export function removeAdmin({ channel_id, user_id, target }) {
         });
 }
 
-export function randomLightMatch({ channel_id, user_id, test_run }) {
+export async function randomLightMatch({ channel_id, user_id, test_run }) {
     const web = getBotClient();
-    let private_groups_pr = web.groups.list({
-        exclude_archived: true,
-        exclude_members: false,
-    })
-        .then((r) => {
-            if (r.ok != true) {
-                throw "bad response ok!=ok";
-            }
-            return r.groups;
-        })
-        .catch((err) => { console.log('Slack GROUPS.LIST', err); })
-        ;
+    const pub_channel = test_run ? user_id : channel_id;
 
-    let channel_data_pr = web.channels.info({
-        channel: channel_id,
-    })
-        .then((r) => {
-            if (r.ok != true) {
-                throw "bad response ok!=ok";
-            }
-            return r.channel;
+    const settings = await getChannelSettings(channel_id);
+
+    if (settings.is_turned_off == 'Y') {
+        return false; // channel is disabled by bot owner over SQL request (saved for history)
+    }
+
+    if (settings.stop_reason) {
+        await web.chat.postMessage({
+            channel: pub_channel,
+            text: [
+                `${test_run ? '*ТЕСТОВЫЙ ЗАПУСК*' : ''}`,
+                settings.stop_reason,
+            ].join("\n"),
         })
-        .catch((err) => { console.log('Slack CHANNELS.INFO', err); })
-        ;
+            .then((resp) => {
+                console.log('Reason update message was sent');
+            })
+            .catch((err) => {
+                console.log('ERROR: failed to send reason updaten message', err)
+            })
+            ;
+
+        return false;
+    }
+
+    let members_pr = getAllChannelMembers(channel_id);
 
     let users_pr = web.users.list({})
         .then((r) => {
@@ -835,15 +858,12 @@ export function randomLightMatch({ channel_id, user_id, test_run }) {
     const unavail_pr = getUnavailable(channel_id);
     const users_auto_ok_pr = getAutoOk(channel_id);
 
-    Promise.all([users_pr, channel_data_pr, private_groups_pr, unavail_pr, users_auto_ok_pr])
-        .then(([users, group_data, private_grs, unavail_list, users_ok_list]) => {
+    Promise.all([users_pr, members_pr, unavail_pr, users_auto_ok_pr])
+        .then(([users, members, unavail_list, users_ok_list]) => {
             console.log('unavailable list', unavail_list);
             const del_users_list = [];
             const restricted_users_list = [];
-            const private_group_data = private_grs.find((group) => {
-                return group.id == channel_id;
-            });
-            const { name: channel_name, members } = group_data ? group_data : private_group_data;
+            
             const active_members = members.filter((member) => {
                 if (unavail_list.indexOf(member) != -1) {// filter unavailable users
                     return false;
@@ -883,8 +903,6 @@ export function randomLightMatch({ channel_id, user_id, test_run }) {
                             console.log('ERROR: failed to clear extra table for channel', channel_id, err)
                         });
 
-                    const pub_channel = test_run ? user_id : channel_id;
-
                     const i18n_for_invites = (n) => {
                         n = n > 100 ? n % 100 : n;
                         n = n > 20 ? n % 10 : n;
@@ -904,7 +922,7 @@ export function randomLightMatch({ channel_id, user_id, test_run }) {
                         as_user: true,
                     })
                         .then((resp) => {
-                            console.log('New run message was posted into channel', channel_name, resp);
+                            console.log('New run message was posted into channel', pub_channel, resp);
                             updateEvent(
                                 event_id,
                                 {
@@ -965,7 +983,7 @@ export function randomLightMatch({ channel_id, user_id, test_run }) {
             // ].join(''));
         });
 
-    return { text: null, delete_original: true };
+    return true;
 }
 
 export function extraLightMatch({ channel_id, user_id, test_run }) {
@@ -981,8 +999,8 @@ export function extraLightMatch({ channel_id, user_id, test_run }) {
     Promise.all([extra_users_pr, history_pr, event_pr])
         .then(([extra_users, history, event_data]) => {
 
-            // do nothing if event is closed
-            if (event_data.is_closed == 'Y') {
+            // do nothing if event is closed or not found
+            if (!event_data || event_data.is_closed == 'Y') {
                 return; // wrong matcher run (by cron or by hands in wrong time) 
             }
 
@@ -1220,37 +1238,7 @@ export async function notifyLongPauseUsears({ channel_id }) {
     const web = getBotClient();
     const settings = await getChannelSettings(channel_id);
 
-    let members;
-
-    if (settings.is_group == 'Y') {
-        members = await web.groups.list({
-            exclude_archived: true,
-            exclude_members: false,
-        })
-            .then((r) => {
-                if (r.ok != true) {
-                    throw "bad response ok!=ok";
-                }
-                return r.groups.find((group) => {
-                    return group.id == channel_id;
-                }).members;
-            })
-            .catch((err) => { console.log('Slack GROUPS.LIST', err); })
-            ;
-    }
-    else {
-        members = await web.channels.info({
-            channel: channel_id,
-        })
-            .then((r) => {
-                if (r.ok != true) {
-                    throw "bad response ok!=ok";
-                }
-                return r.channel.members;
-            })
-            .catch((err) => { console.log('Slack CHANNELS.INFO', err); })
-            ;
-    }
+    const members = await getAllChannelMembers(channel_id);
 
     if (!members) {
         return {
@@ -1291,4 +1279,133 @@ export async function notifyLongPauseUsears({ channel_id }) {
             },
         ],
     };
+}
+
+export async function showStopDialog(trigger_id, channel_id) {
+    const web = getBotClient();
+
+    const settings = await getChannelSettings(channel_id);
+
+    return web.dialog.open({
+        trigger_id: trigger_id,
+        dialog: {
+            callback_id: "dialog-stop",
+            title: "Приостановка раундов",
+            submit_label: "Отправить",
+            notify_on_cancel: true,
+            elements: [
+                {
+                    type: "textarea",
+                    name: "reason",
+                    optional: true,
+                    label: "Причина",
+                    max_length: 512,
+                    value: settings.stop_reason,
+                    placeholder: "Это сообщение будет показано пользователям вместо старта нового раунда в канале.",
+                    hint: "удалите причину, если хотите возобновить раунды",
+                },
+            ],
+        }
+    })
+        .then((resp) => {
+            console.log('Stop dialog was opened', resp.body);
+        })
+        .catch((err) => {
+            console.log('ERROR: failed to open stop dialog', err);
+            if (err.data && err.data.response_metadata && err.data.response_metadata.messages) {
+                console.log(err.data.response_metadata.messages);
+                console.log('========================================');
+            }
+        });
+}
+
+export function onStopReasonCome(payload) {
+    const web = getBotClient();
+    const reason = payload.submission.reason;
+
+    updateChannelReason(payload.channel.id, reason)
+        .then(() => {
+            web.chat.postEphemeral({
+                channel: payload.channel.id,
+                user: payload.user.id,
+                text: `Причина приостановки раундов установлена в:\n ${reason}`,
+                as_user: true,
+                attachments: [
+                    {
+                        callback_id: "user_form",
+                        title: null,
+                        actions: [
+                            {
+                                "name": "cancel",
+                                "text": "X",
+                                "type": "button",
+                                "value": "cancel",
+                            },
+                        ]
+                    },
+                ]
+            })
+                .then((resp) => {
+                    console.log('Reason update message was sent');
+                })
+                .catch((err) => {
+                    console.log('ERROR: failed to send reason updaten message', err)
+                });
+        })
+        .catch((err) => {
+            console.log('ERROR: failed to update Channel Stop Reason', err)
+        })
+        ;
+}
+
+export async function initChannelInDb({channel_id, user_id}) {
+    const web = getBotClient();
+    const settings = await getChannelSettings(channel_id);
+
+    const info = await web.conversations.info({channel: channel_id});
+    console.log('Channel info', info);
+
+    settings.name = info.channel.name;
+    settings.is_group = info.channel.is_group ? 'Y' : 'N';
+
+    if (!settings.id) {
+        settings.schedule = "0 0 9 1 1 1";
+        settings.extra_schedule = '0 0 9 1 1 1';
+        settings.close_schedule = '0 0 9 1 1 1';
+        settings.timezone = 'Europe/Kiev';
+        settings.admins = [];
+        // insert
+        await createChannelSettings(settings);
+    }
+    else {
+        await updateChannelSettings(channel_id, settings);
+    }
+
+
+    web.chat.postEphemeral({
+        channel: channel_id,
+        user: user_id,
+        text: `Канал инициализирован`,
+        as_user: true,
+        attachments: [
+            {
+                callback_id: "user_form",
+                title: null,
+                actions: [
+                    {
+                        "name": "cancel",
+                        "text": "Убрать",
+                        "type": "button",
+                        "value": "cancel",
+                    },
+                ]
+            },
+        ]
+    })
+        .then((resp) => {
+            console.log('Channel init message was sent');
+        })
+        .catch((err) => {
+            console.log('ERROR: failed to send channel init message', err)
+        });
 }
